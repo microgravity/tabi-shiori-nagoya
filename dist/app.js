@@ -1,48 +1,26 @@
 'use strict';
-const place=(kana,name,kind,description,ride='',color='#258aa5')=>({kana,name,kind,description,ride,color});
-const nagoya=()=>place('なごや','名古屋駅','えき','なごやに ついたよ。つぎに のる でんしゃを みつけよう。');
-const port=()=>place('きんじょうふとう','金城ふ頭駅','えき','あおなみせんの さいごの えきだよ。ここで おりよう。');
-const trip=[{title:'おしろ',stops:[
-place('しながわ','品川駅','しゅっぱつ','しんかんせんに のって、なごやへ いこう！','しんかんせん → なごや','#287bb5'),
-{...nagoya(),ride:'ひがしやません・ふじがおか ゆき → さかえ',color:'#c29a17'},
-place('さかえ','栄駅','のりかえ','ここで のりかえ！ むらさきいろの めいじょうせんを さがそう。','めいじょうせん・みぎまわり → なごやじょう','#8164a5'),
-place('なごやじょう','名古屋城駅','えき','7ばん でぐちから そとへ でよう。','あるいて おしろへ・やく5ふん','#6d8a71'),
-{...place('なごやじょう','名古屋城','おしろ','きんいろの しゃちほこを さがそう。いしがきも よく みてみよう。','あるいて なごやじょうえきへ','#6d8a71'),image:true},
-place('なごやじょう','名古屋城駅','えき','きょう みつけたものを おはなししよう。','めいじょうせん・ひだりまわり → さかえ','#8164a5'),
-place('さかえ','栄駅','のりかえ','きいろの ひがしやませんへ のりかえよう。','ひがしやません・たかばた ゆき → なごや','#c29a17'),
-place('なごや','名古屋駅','おかえり','きょうの みちのりは ここまで。おうちのひとと ホテルへ いこう。')
-]},{title:'れごらんど',stops:[
-{...nagoya(),ride:'あおなみせん → きんじょうふとう'},
-{...port(),ride:'あるいて れごらんどへ・やく10ふん',color:'#6d8a71'},
-place('れごらんど','レゴランド・ジャパン','あそぶ','ブロックで できた まちを みつけよう！','あるいて きんじょうふとうえきへ','#6d8a71'),
-{...port(),description:'たのしかったね。あおなみせんで もどろう。',ride:'あおなみせん → なごや'},
-place('なごや','名古屋駅','おかえり','きょうの みちのりは ここまで。おうちのひとと ホテルへ いこう。')
-]},{title:'てつどうかん',stops:[
-{...nagoya(),ride:'あおなみせん → きんじょうふとう'},
-{...port(),ride:'あるいて てつどうかんへ・やく2ふん',color:'#6d8a71'},
-place('りにあてつどうかん','リニア・鉄道館','はくぶつかん','いろいろな しんかんせんを みくらべよう。すきな でんしゃは どれかな。','あるいて きんじょうふとうえきへ','#6d8a71'),
-{...port(),description:'あおなみせんで なごやえきへ もどろう。',ride:'あおなみせん → なごや'},
-{...nagoya(),description:'こんどは しんかんせんに のりかえるよ。',ride:'しんかんせん → しながわ',color:'#287bb5'},
-place('しながわ','品川駅','ゴール','おかえりなさい！ たびで みつけたものを おはなししよう。')
-]}];
 const $=id=>document.getElementById(id);
-let saved={};try{saved=JSON.parse(localStorage.getItem('nagoya-trip-v1')||'{}')||{};}catch{}
-let day=Number.isInteger(saved.day)&&saved.day>=0&&saved.day<trip.length?saved.day:0;
-let visited=new Set(Array.isArray(saved.visited)?saved.visited.filter(x=>typeof x==='string'):[]);
-let written=new Set(Array.isArray(saved.written)?saved.written.filter(x=>typeof x==='string'):[]);
-let current=Array.isArray(saved.current)?trip.map((d,i)=>Number.isInteger(saved.current[i])?Math.max(0,Math.min(d.stops.length-1,saved.current[i])):0):[0,0,0];
-let selected=current[day],letter=0,word='',strokes=[],activePointer=null;
-const key=(d,i)=>`${d}:${i}`;
-function save(){try{localStorage.setItem('nagoya-trip-v1',JSON.stringify({day,current,visited:[...visited],written:[...written]}));$('saveStatus').textContent='記録はこのブラウザに保存されています。';}catch{$('saveStatus').textContent='このブラウザでは記録を保存できません。画面を閉じると記録が消える場合があります。';}}
+let saved={day:0,current:trip.map(()=>0),visited:[],written:[]};
+let legacyRetained=false;
+try{
+ const existing=localStorage.getItem(RECORD_KEY);
+ if(existing)saved=validateTransfer(JSON.parse(existing));
+ else {const old=JSON.parse(localStorage.getItem('nagoya-trip-v1')||'null');if(old){legacyRetained=true;if(Array.isArray(old.written))saved.written=[...new Set(old.written.filter(x=>validLetters.has(x)))];}}
+}catch{}
+let day=saved.day,current=saved.current,visited=new Set(saved.visited),written=new Set(saved.written);
+let selected=current[day],letter=0,word='',strokes=[],activePointer=null,pendingImport=null;
+const key=(d,i)=>trip[d].id+':'+trip[d].stops[i].id;
+function getState(){return {day,current:[...current],visited:[...visited],written:[...written]};}
+function save(){try{localStorage.setItem(RECORD_KEY,JSON.stringify(makeTransfer(getState())));$('saveStatus').textContent=legacyRetained?'仮旅程の元の記録は別に残し、ひらがなの練習記録を引き継ぎました。新旅程の到着記録は別に保存します。':'記録はこのブラウザに保存されています。';return true;}catch{$('saveStatus').textContent='このブラウザでは記録を保存できません。JSONを書き出して保管してください。';return false;}}
 function speak(text){if(!('speechSynthesis'in window)){announce('この たんまつでは おとが でないよ。もじを みてね。');return;}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ja-JP';u.rate=.75;u.onerror=()=>announce('おとが でなかったよ。もじを みてね。');speechSynthesis.speak(u);}
 function announce(text){$('writeFeedback').textContent=text;if(!$('practice').open){let p=$('speechStatus');if(p)p.textContent=text;}}
 function render(){
- $('days').innerHTML=trip.map((d,i)=>`<button class="${day===i?'active':''}" aria-pressed="${day===i}" data-day="${i}"><strong>${i+1}にちめ</strong><small>${d.title}</small></button>`).join('');
+ $('days').innerHTML=trip.map((d,i)=>`<button class="${day===i?'active':''}" aria-pressed="${day===i}" data-day="${i}"><strong>${d.date}</strong><small>${d.title}</small></button>`).join('');
  $('total').textContent=`ついた！ ${visited.size} / ${trip.reduce((n,d)=>n+d.stops.length,0)}`;
  const stops=trip[day].stops;
  $('route').innerHTML=stops.map((s,i)=>`<button class="stop ${i===selected?'selected':''} ${visited.has(key(day,i))?'done':''}" data-stop="${i}" aria-pressed="${i===selected}"><span><span class="kana">${s.kana}</span><small>${s.name}</small></span><span class="mark">${i===current[day]?'いま':visited.has(key(day,i))?'✓':''}</span></button>${s.ride?`<div class="transport" style="--line:${s.color}"><b>${s.ride}</b></div>`:''}`).join('');
  const s=stops[selected],next=stops[selected+1],done=visited.has(key(day,selected));
- $('detail').innerHTML=`${s.image?'<img class="place-image" src="./nagoya-castle.jpg" alt="青空の下の名古屋城">':''}<div class="detail-body"><span class="tag">${selected===current[day]?'いま ここ':s.kind}</span><h2>${s.kana}</h2><p class="kanji">${s.name}</p><p class="description">${s.description}</p><div class="actions"><button id="listen">なまえを きく ♪</button><button id="write" class="primary">ひらがなを かく</button></div><div class="actions"><button id="arrive" class="arrive">${done?'✓ ついた！ を とりけす':'ついた！'}</button>${selected!==current[day]?'<button id="setCurrent">ここから すすめる</button>':''}</div><p id="speechStatus" role="status"></p></div><div class="next-card"><small>${next?'つぎは':'きょうの ゴール'}</small><p><strong>${next?next.kana:'ぜんぶ たどれたね！'}</strong></p>${next?`<p>${s.ride}</p><button id="goNext">つぎへ すすむ →</button>`:day<2?'<button id="nextDay">つぎの ひを みる →</button>':''}</div>`;
+ $('detail').innerHTML=`${s.image?'<img class="place-image" src="./nagoya-castle.jpg" alt="青空の下の名古屋城">':''}<div class="detail-body"><span class="tag">${selected===current[day]?'いま ここ':s.kind}</span><h2>${s.kana}</h2><p class="kanji">${s.name}</p><p class="description">${s.description}</p><div class="actions"><button id="listen">なまえを きく ♪</button><button id="write" class="primary">ひらがなを かく</button></div><div class="actions"><button id="arrive" class="arrive">${done?'✓ ついた！ を とりけす':'ついた！'}</button>${selected!==current[day]?'<button id="setCurrent">ここから すすめる</button>':''}</div><p id="speechStatus" role="status"></p></div><div class="next-card"><small>${next?'つぎは':'きょうの ゴール'}</small><p><strong>${next?next.kana:trip[day].stay}</strong></p>${next?`<p>${s.ride}</p><button id="goNext">つぎへ すすむ →</button>`:day<2?'<button id="nextDay">つぎの ひを みる →</button>':''}</div>`;
  $('listen').onclick=()=>speak(s.kana);$('write').onclick=()=>openPractice(s.kana);
  $('arrive').onclick=()=>{const k=key(day,selected);visited.has(k)?visited.delete(k):visited.add(k);save();render();};
  if($('setCurrent'))$('setCurrent').onclick=()=>{current[day]=selected;save();render();};
@@ -62,7 +40,7 @@ function chooseDay(i){day=i;selected=current[i];save();render();}
  $('freeWrite').onchange=()=>{$('glyph').hidden=$('freeWrite').checked;};
  $('speakWord').onclick=()=>speak(word);
  $('nextLetter').onclick=()=>{if(strokes.some(s=>s.length>1)){written.add(word+':'+letter);save();}const last=letter===word.length-1;letter=last?0:letter+1;showLetter();if(last)$('writeFeedback').textContent='なまえを もういちど かいてみよう！';};
- $('closePractice').onclick=()=>{$('practice').close();if('speechSynthesis'in window)speechSynthesis.cancel();};
+ $('closePractice').onclick=()=>{if(strokes.some(s=>s.length>1)){written.add(word+':'+letter);save();}$('practice').close();if('speechSynthesis'in window)speechSynthesis.cancel();};
  $('undo').onclick=()=>{strokes.pop();redraw();};$('clear').onclick=()=>{strokes=[];redraw();};
  function point(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*600/r.width,y:(e.clientY-r.top)*600/r.height};}
  canvas.addEventListener('pointerdown',e=>{if(activePointer!==null)return;e.preventDefault();activePointer=e.pointerId;canvas.setPointerCapture(e.pointerId);strokes.push([point(e)]);redraw();});
@@ -70,3 +48,12 @@ function chooseDay(i){day=i;selected=current[i];save();render();}
  for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,e=>{if(e.pointerId===activePointer)activePointer=null;});
  canvas.addEventListener('contextmenu',e=>e.preventDefault());
  save();render();
+
+function exportFile(){return new File([JSON.stringify(makeTransfer(getState()),null,2)],'nagoya-trip-records.json',{type:'application/json'});}
+function downloadRecords(){const file=exportFile(),url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$('transferStatus').textContent='JSONの保存を開始しました。保存先を確認して、別の端末へ渡してください。';}
+$('exportRecords').onclick=()=>{try{downloadRecords();}catch{$('transferStatus').textContent='書き出せませんでした。このブラウザでファイルの保存が許可されているか確認してください。';}};
+$('shareRecords').onclick=async()=>{try{const file=exportFile();if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'たびのしおりの記録'});$('transferStatus').textContent='共有先の端末でJSONを読み込んでください。';}else downloadRecords();}catch(e){$('transferStatus').textContent=e.name==='AbortError'?'共有をキャンセルしました。':'共有できませんでした。「JSONを書き出す」をお使いください。';}};
+$('importRecords').onclick=()=>{$('importFile').value='';$('importFile').click();};
+$('importFile').onchange=async e=>{pendingImport=null;$('importPreview').hidden=true;const file=e.target.files[0];if(!file)return;try{if(file.size>65536)throw Error('ファイルが大きすぎます。このアプリで書き出した64KB以下のJSONを選んでください。');const raw=JSON.parse(await file.text());pendingImport=validateTransfer(raw);$('importSummary').textContent=`読み込む記録：到着 ${pendingImport.visited.length}か所、練習 ${pendingImport.written.length}文字。現在地：${trip[pendingImport.day].date}・${trip[pendingImport.day].stops[pendingImport.current[pendingImport.day]].name}。この端末：到着 ${visited.size}か所、練習 ${written.size}文字。`;$('importPreview').hidden=false;$('transferStatus').textContent='まだ記録は変更していません。読み込み方法を選んでください。';}catch(e){$('transferStatus').textContent=e instanceof SyntaxError?'JSONを読み取れませんでした。記録は変更していません。':e.message;}};
+function applyImport(merge){if(!pendingImport)return;const next=validateState({...pendingImport,visited:merge?[...new Set([...visited,...pendingImport.visited])]:pendingImport.visited,written:merge?[...new Set([...written,...pendingImport.written])]:pendingImport.written});try{localStorage.setItem(RECORD_KEY,JSON.stringify(makeTransfer(next)));}catch{$('transferStatus').textContent='保存できなかったため、記録は変更していません。';return;}day=next.day;current=next.current;selected=current[day];visited=new Set(next.visited);written=new Set(next.written);pendingImport=null;$('importPreview').hidden=true;save();render();$('transferStatus').textContent=merge?'記録を足しました。現在地も読み込んだ端末に合わせました。':'読み込んだ記録に置き換えました。';}
+$('mergeRecords').onclick=()=>applyImport(true);$('replaceRecords').onclick=()=>applyImport(false);$('cancelImport').onclick=()=>{pendingImport=null;$('importPreview').hidden=true;$('transferStatus').textContent='読み込みをやめました。記録は変更していません。';};
