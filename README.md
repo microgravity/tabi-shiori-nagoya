@@ -28,7 +28,7 @@
 
 21日の訪問順・品川発着・移動路線は仮設定です。列車時刻・ホテル名・ホテルへの経路は未設定です。
 
-各日の「Google マップで みちのりを みる」から、移動区間ごとの電車・バス／徒歩の経路検索を開きます。選択中の場所から次の場所へのリンクも表示します。ロープウェー区間は到着駅の場所を表示し、徒歩の山道を代わりに案内しません。Google マップの候補は出発日時や運行状況により変わるため、必要に応じて出発日時を指定してください。
+各駅・施設の「ついた！」と同じ行にある「Google マップ」ボタンで選択中の場所を開けます。各日の「Google マップで みちのりを みる」から、移動区間ごとの電車・バス／徒歩の経路検索を開きます。選択中の場所から次の場所へのリンクも表示します。ロープウェー区間は到着駅の場所を表示し、徒歩の山道を代わりに案内しません。Google マップの候補は出発日時や運行状況により変わるため、必要に応じて出発日時を指定してください。
 
 旅程データは `dist/trip.js`、場所検索語とリンク生成は `dist/maps.js` に分けています。ホテル確定時はホテルのstopに `mapQuery`（施設名と所在地）を追加し、前後の `ride` と最寄り駅を更新します。経路を追加する際は原則stop.idを保持し、到着済み記録との対応を守ります。
 
@@ -42,3 +42,10 @@
 https://commons.wikimedia.org/wiki/File:Nagoya_Castle(Larger).jpg
 
 文字：既存のroutemap-kana収録のstrokesvg / Klee One。ライセンスは `dist/glyphs/LICENSE.txt`。
+
+追加写真（表示範囲を調整）：
+- 犬山城：百楽兎、CC BY-SA 3.0 — https://commons.wikimedia.org/wiki/File:Inuyama_Castle.jpg
+- リニア・鉄道館：Morio、CC BY-SA 3.0 — https://commons.wikimedia.org/wiki/File:SCMaglev_and_Railway_Park_Great_Rollingstock_Hall.jpg
+- レゴランド・ジャパン：Bariston、CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Legoland_japan.jpg
+
+写真のファイル・代替テキスト・クレジットは `dist/photos.js` で管理しています。

@@ -29,6 +29,7 @@ jobs:
         run: |
           node --check dist/trip.js
           node --check dist/maps.js
+          node --check dist/photos.js
           node --check dist/records.js
           node --check dist/app.js
           node -e "const fs=require('fs');if(!fs.readFileSync('dist/index.html','utf8').includes('<meta name=\"robots\" content=\"noindex\">'))process.exit(1)"
