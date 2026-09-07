@@ -17,10 +17,12 @@ function announce(text){$('writeFeedback').textContent=text;if(!$('practice').op
 function render(){
  $('days').innerHTML=trip.map((d,i)=>`<button class="${day===i?'active':''}" aria-pressed="${day===i}" data-day="${i}"><strong>${d.date}</strong><small>${d.title}</small></button>`).join('');
  $('total').textContent=`ついた！ ${visited.size} / ${trip.reduce((n,d)=>n+d.stops.length,0)}`;
+ renderDayMaps(day);
  const stops=trip[day].stops;
  $('route').innerHTML=stops.map((s,i)=>`<button class="stop ${i===selected?'selected':''} ${visited.has(key(day,i))?'done':''}" data-stop="${i}" aria-pressed="${i===selected}"><span><span class="kana">${s.kana}</span><small>${s.name}</small></span><span class="mark">${i===current[day]?'いま':visited.has(key(day,i))?'✓':''}</span></button>${s.ride?`<div class="transport" style="--line:${s.color}"><b>${s.ride}</b></div>`:''}`).join('');
  const s=stops[selected],next=stops[selected+1],done=visited.has(key(day,selected));
  $('detail').innerHTML=`${s.image?'<img class="place-image" src="./nagoya-castle.jpg" alt="青空の下の名古屋城">':''}<div class="detail-body"><span class="tag">${selected===current[day]?'いま ここ':s.kind}</span><h2>${s.kana}</h2><p class="kanji">${s.name}</p><p class="description">${s.description}</p><div class="actions"><button id="listen">なまえを きく ♪</button><button id="write" class="primary">ひらがなを かく</button></div><div class="actions"><button id="arrive" class="arrive">${done?'✓ ついた！ を とりけす':'ついた！'}</button>${selected!==current[day]?'<button id="setCurrent">ここから すすめる</button>':''}</div><p id="speechStatus" role="status"></p></div><div class="next-card"><small>${next?'つぎは':'きょうの ゴール'}</small><p><strong>${next?next.kana:trip[day].stay}</strong></p>${next?`<p>${s.ride}</p><button id="goNext">つぎへ すすむ →</button>`:day<2?'<button id="nextDay">つぎの ひを みる →</button>':''}</div>`;
+ const routeLink=mapStep(day,selected);if(routeLink){const a=document.createElement('a');a.className='map-next';a.href=routeLink.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=routeLink.ropeway?'Google マップで つく えきを みる ↗':'Google マップで つぎまでの みちのり ↗';$('detail').querySelector('.next-card').append(a);}
  $('listen').onclick=()=>speak(s.kana);$('write').onclick=()=>openPractice(s.kana);
  $('arrive').onclick=()=>{const k=key(day,selected);visited.has(k)?visited.delete(k):visited.add(k);save();render();};
  if($('setCurrent'))$('setCurrent').onclick=()=>{current[day]=selected;save();render();};
