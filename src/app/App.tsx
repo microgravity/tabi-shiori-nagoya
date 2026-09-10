@@ -9,6 +9,12 @@ import type { Point } from "../domain/input";
 import { sampleGlyphGuide } from "../features/practice/sampleGlyphGuide";
 import { WritingPad } from "../features/practice/WritingPad";
 import { TRIP, mapDir, mapSearch, type Stop } from "../data/trip";
+import {
+  crossedPracticeCheckpoint,
+  dayPracticeSummary,
+  stopPracticeSummary,
+  tripPracticeSummary,
+} from "../domain/tripMotivation";
 type Level = "gentle" | "standard" | "careful";
 type Rec = {
   version: 2;
@@ -71,12 +77,14 @@ function say(t: string) {
 function Practice({
   stop,
   sid,
+  dayIndex,
   rec,
   save,
   close,
 }: {
   stop: Stop;
   sid: string;
+  dayIndex: number;
   rec: Rec;
   save: (r: Rec) => void;
   close: () => void;
@@ -92,7 +100,11 @@ function Practice({
     [ink, setInk] = useState(false),
     [guide, setGuide] = useState<TraceGuideStroke[] | null>(null),
     [msg, setMsg] = useState(""),
-    [reward, setReward] = useState(false),
+    [reward, setReward] = useState<null | {
+      repeated: boolean;
+      checkpoint: number | null;
+      dayComplete: boolean;
+    }>(null),
     [resetKey, setResetKey] = useState(0),
     [replayKey, setReplayKey] = useState(0),
     [show, setShow] = useState(true);
@@ -106,7 +118,7 @@ function Practice({
     setStrokes([]);
     setInk(false);
     setMsg("");
-    setReward(false);
+    setReward(null);
     setResetKey((k) => k + 1);
   };
   const submit = () => {
@@ -116,13 +128,28 @@ function Practice({
       setMsg(traceFeedback(e));
       return;
     }
+    const repeated = done.includes(index);
+    const beforeDay = dayPracticeSummary(dayIndex, TRIP[dayIndex].stops, rec.practice);
     const positions = [...new Set([...done, index])].sort((a, b) => a - b);
-    save({ ...rec, practice: { ...rec.practice, [sid]: positions } });
+    const nextPractice = { ...rec.practice, [sid]: positions };
+    const afterDay = dayPracticeSummary(dayIndex, TRIP[dayIndex].stops, nextPractice);
+    save({ ...rec, practice: nextPractice });
     setMsg("");
-    setReward(true);
+    setReward({
+      repeated,
+      checkpoint: crossedPracticeCheckpoint(
+        beforeDay.completedCharacters,
+        afterDay.completedCharacters,
+        afterDay.totalCharacters,
+      ),
+      dayComplete:
+        beforeDay.completedStops < beforeDay.totalStops &&
+        afterDay.completedStops === afterDay.totalStops,
+    });
   };
   const now = [...new Set([...done, ...(reward ? [index] : [])])];
   const complete = now.length === chars.length;
+  const remaining = Math.max(0, chars.length - now.length);
   const next = () => {
     const n = chars.findIndex((_, i) => !now.includes(i));
     reset(n < 0 ? 0 : n);
@@ -152,6 +179,10 @@ function Practice({
           </button>
         ))}
       </nav>
+      <div className="practice-motivation" aria-label={`れんしゅう ${now.length}もじ／${chars.length}もじ`}>
+        <div><strong>{now.length} / {chars.length} もじ</strong><span>{complete ? "★ ぜんぶ かけた！" : `あと ${remaining}もじ`}</span></div>
+        <progress value={now.length} max={chars.length} />
+      </div>
       <div className="practice-grid">
         <section>
           <p className="current-kana">
@@ -198,10 +229,17 @@ function Practice({
         </p>
       )}
       {reward && (
-        <div className="reward" role="dialog">
+        <div className={`reward ${complete || reward.checkpoint ? "reward--celebrate" : ""}`} role="dialog">
+          {(complete || reward.checkpoint) && <div className="reward-confetti" aria-hidden="true">★　●　★　●　★</div>}
           <section>
+            <div className="reward-medal" aria-hidden="true">★</div>
             <p>🎉 {kana} が かけたね！</p>
-            <h2>{complete ? `${stop.kana} ぜんぶ かけた！` : "せいかい！"}</h2>
+            <h2>{complete ? `${stop.kana} ぜんぶ かけた！` : reward.repeated ? "また かけたね！" : "せいかい！"}</h2>
+            {reward.checkpoint && (
+              <p className="checkpoint-stamp">{Math.round(reward.checkpoint * 100)}%！ きょうの スタンプ</p>
+            )}
+            {reward.dayComplete && <p className="day-complete-message">きょうの ことばを ぜんぶ かけたよ！</p>}
+            {!complete && <p className="reward-next-copy">あと {remaining}もじで 「{stop.kana}」クリア！</p>}
             <button onClick={next}>
               {complete ? "もういちど かく" : "つぎの もじ"}
             </button>
@@ -230,20 +268,14 @@ export function App() {
     setSelected(s);
     save({ ...rec, current: { day: d, stop: s } });
   };
-  const total = TRIP.reduce((n, d) => n + d.stops.length, 0),
-    pc = useMemo(
-      () =>
-        TRIP.reduce(
-          (n, d, di) =>
-            n +
-            d.stops.filter(
-              (s, si) =>
-                (rec.practice[id(di, si)]?.length ?? 0) === [...s.kana].length,
-            ).length,
-          0,
-        ),
-      [rec],
-    );
+  const dayPractice = useMemo(
+    () => TRIP.map((item, index) => dayPracticeSummary(index, item.stops, rec.practice)),
+    [rec.practice],
+  );
+  const overallPractice = useMemo(() => tripPracticeSummary(TRIP, rec.practice), [rec.practice]);
+  const currentPractice = stopPracticeSummary(stop.kana, rec.practice[sid]);
+  const total = overallPractice.totalStops;
+  const pc = overallPractice.completedStops;
   const exportJson = () => {
     const a = document.createElement("a"),
       u = URL.createObjectURL(
@@ -271,6 +303,7 @@ export function App() {
       <Practice
         stop={stop}
         sid={sid}
+        dayIndex={day}
         rec={rec}
         save={save}
         close={() => setPractice(false)}
@@ -304,6 +337,17 @@ export function App() {
             <span>
               れんしゅう ★ {pc} / {total}
             </span>
+            <div className="trip-practice-progress">
+              <span>{overallPractice.completedCharacters} / {overallPractice.totalCharacters} もじ</span>
+              <progress value={overallPractice.completedCharacters} max={overallPractice.totalCharacters} />
+              <div className="checkpoint-row" aria-label="れんしゅうスタンプ">
+                {[25, 50, 75, 100].map((point) => (
+                  <i key={point} className={overallPractice.completedCharacters / overallPractice.totalCharacters >= point / 100 ? "earned" : ""}>
+                    {point}%
+                  </i>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
         <nav className="days">
@@ -315,6 +359,9 @@ export function App() {
             >
               <strong>{d.label}</strong>
               <small>{d.subtitle}</small>
+              <span className="day-practice-count">
+                {dayPractice[i].completedStops === dayPractice[i].totalStops ? "★ ぜんぶ クリア" : `✎ ${dayPractice[i].completedCharacters}/${dayPractice[i].totalCharacters}もじ`}
+              </span>
             </button>
           ))}
         </nav>
@@ -382,7 +429,9 @@ export function App() {
               <div className="actions">
                 <button onClick={() => say(stop.kana)}>なまえを きく ♪</button>
                 <button className="primary" onClick={() => setPractice(true)}>
-                  ひらがなを かく
+                  {currentPractice.complete
+                    ? "もういちど かく"
+                    : `ひらがなを かく（あと ${currentPractice.totalCharacters - currentPractice.completedCharacters}もじ）`}
                 </button>
               </div>
               <div className="actions">
@@ -409,7 +458,12 @@ export function App() {
                   </a>
                 )}
               </div>
-              {(rec.practice[sid]?.length ?? 0) === [...stop.kana].length && (
+              {!currentPractice.complete && currentPractice.completedCharacters > 0 && (
+                <p className="stop-practice-status">
+                  ★ {currentPractice.completedCharacters}/{currentPractice.totalCharacters}もじ　あと {currentPractice.totalCharacters - currentPractice.completedCharacters}もじ！
+                </p>
+              )}
+              {currentPractice.complete && (
                 <p className="practice-complete">
                   ★ ひらがな れんしゅう かんりょう
                 </p>
