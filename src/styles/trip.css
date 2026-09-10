@@ -2,3 +2,4 @@
 @media(max-width:800px){.shell>main{padding:0 12px}.hero{align-items:start}.layout{grid-template-columns:1fr}.detail{position:static}.practice-grid{grid-template-columns:1fr}.practice-grid aside{grid-template-columns:repeat(4,1fr)}.practice-grid aside button{font-size:.8rem}.days small{font-size:.68rem}}
 @media(max-width:520px){.hero{display:block}.days{grid-template-columns:1fr}.practice{padding:8px}.practice>header{font-size:.78rem}.practice-grid aside{grid-template-columns:1fr 1fr}.detail img{height:190px}}
 .info-link{display:block;width:fit-content;min-height:48px;margin:10px 0;padding:12px 14px;border-radius:12px;background:#fff1b9;color:#684900;font-weight:900;text-decoration:none}
+body{padding-bottom:max(48px,calc(24px + env(safe-area-inset-bottom)))}
